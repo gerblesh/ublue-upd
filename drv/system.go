@@ -34,24 +34,22 @@ type SystemUpdateDriver interface {
 	Outdated() (bool, error)
 	Check() (bool, error)
 	Update() (*[]CommandOutput, error)
-	Config() DriverConfiguration
-	SetEnabled(value bool)
 	Logger() *slog.Logger
 	SetLogger(value *slog.Logger)
 }
 
 type SystemUpdater struct {
-	config     DriverConfiguration
+	Config     DriverConfiguration
 	BinaryPath string
 }
 
-func (dr SystemUpdater) Outdated() (bool, error) {
-	if dr.config.DryRun {
+func (up SystemUpdater) Outdated() (bool, error) {
+	if up.Config.DryRun {
 		return false, nil
 	}
 	oneMonthAgo := time.Now().AddDate(0, -1, 0)
 	var timestamp time.Time
-	cmd := exec.Command(dr.BinaryPath, "status", "--format=json")
+	cmd := exec.Command(up.BinaryPath, "status", "--format=json")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return false, err
@@ -73,9 +71,9 @@ func (up SystemUpdater) Update() (*[]CommandOutput, error) {
 	var cmd *exec.Cmd
 	binaryPath := up.BinaryPath
 	cli := []string{binaryPath, "upgrade", "--quiet"}
-	up.config.logger.Debug("Executing update", slog.Any("cli", cli))
+	up.Config.logger.Debug("Executing update", slog.Any("cli", cli))
 	cmd = exec.Command(cli[0], cli[1:]...)
-	out, err := session.RunLog(up.config.logger, slog.LevelDebug, cmd)
+	out, err := session.RunLog(up.Config.logger, slog.LevelDebug, cmd)
 	tmpout := CommandOutput{}.New(out, err)
 	if err != nil {
 		tmpout.SetFailureContext("System update")
@@ -85,26 +83,26 @@ func (up SystemUpdater) Update() (*[]CommandOutput, error) {
 }
 
 func (up SystemUpdater) Steps() int {
-	if up.config.Enabled {
+	if up.Config.Enabled {
 		return 1
 	}
 	return 0
 }
 
 func (up SystemUpdater) New(config UpdaterInitConfiguration) (SystemUpdater, error) {
-	up.config = DriverConfiguration{
-		Title:       "Bootc",
+	up.Config = DriverConfiguration{
+		Title:       "System",
 		Description: "System Image",
 		Enabled:     !config.Ci,
 		DryRun:      config.DryRun,
 		Environment: config.Environment,
 	}
-	up.config.logger = config.Logger.With(slog.String("module", strings.ToLower(up.config.Title)))
-	if up.config.DryRun {
+	up.Config.logger = config.Logger.With(slog.String("module", strings.ToLower(up.Config.Title)))
+	if up.Config.DryRun {
 		return up, nil
 	}
 
-	bootcBinaryPath, exists := up.config.Environment["UUPD_BOOTC_BINARY"]
+	bootcBinaryPath, exists := up.Config.Environment["UUPD_BOOTC_BINARY"]
 	if !exists || bootcBinaryPath == "" {
 		up.BinaryPath = "/usr/bin/bootc"
 	} else {
@@ -115,7 +113,7 @@ func (up SystemUpdater) New(config UpdaterInitConfiguration) (SystemUpdater, err
 }
 
 func (up SystemUpdater) Check() (bool, error) {
-	if up.config.DryRun {
+	if up.Config.DryRun {
 		return true, nil
 	}
 
@@ -125,22 +123,14 @@ func (up SystemUpdater) Check() (bool, error) {
 		return true, err
 	}
 	updateNecessary := !strings.Contains(string(out), "No changes in:")
-	up.config.logger.Debug("Executed update check", slog.String("output", string(out)), slog.Bool("update", updateNecessary))
+	up.Config.logger.Debug("Executed update check", slog.String("output", string(out)), slog.Bool("update", updateNecessary))
 	return updateNecessary, nil
 }
 
-func (up SystemUpdater) Config() DriverConfiguration {
-	return up.config
+func (up *SystemUpdater) Logger() *slog.Logger {
+	return up.Config.logger
 }
 
-func (up SystemUpdater) SetEnabled(value bool) {
-	up.config.Enabled = value
-}
-
-func (up SystemUpdater) Logger() *slog.Logger {
-	return up.config.logger
-}
-
-func (up SystemUpdater) SetLogger(logger *slog.Logger) {
-	up.config.logger = logger
+func (up *SystemUpdater) SetLogger(logger *slog.Logger) {
+	up.Config.logger = logger
 }

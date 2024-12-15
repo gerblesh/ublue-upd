@@ -86,7 +86,7 @@ type UpdateDriver interface {
 	Steps() int
 	Check() (bool, error)
 	Update() (*[]CommandOutput, error)
-	Config() DriverConfiguration
+	Config() *DriverConfiguration
 	SetEnabled(value bool)
 	Logger() *slog.Logger
 	SetLogger(value *slog.Logger)

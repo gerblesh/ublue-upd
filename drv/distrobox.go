@@ -9,7 +9,7 @@ import (
 )
 
 type DistroboxUpdater struct {
-	config       DriverConfiguration
+	Config       DriverConfiguration
 	Tracker      *TrackerConfiguration
 	binaryPath   string
 	users        []session.User
@@ -17,7 +17,7 @@ type DistroboxUpdater struct {
 }
 
 func (up DistroboxUpdater) Steps() int {
-	if up.config.Enabled {
+	if up.Config.Enabled {
 		var steps = 1
 		if up.usersEnabled {
 			steps += len(up.users)
@@ -29,7 +29,7 @@ func (up DistroboxUpdater) Steps() int {
 
 func (up DistroboxUpdater) New(config UpdaterInitConfiguration) (DistroboxUpdater, error) {
 	userdesc := "Distroboxes for User:"
-	up.config = DriverConfiguration{
+	up.Config = DriverConfiguration{
 		Title:           "Distrobox",
 		Description:     "Rootful Distroboxes",
 		UserDescription: &userdesc,
@@ -38,11 +38,11 @@ func (up DistroboxUpdater) New(config UpdaterInitConfiguration) (DistroboxUpdate
 		DryRun:          config.DryRun,
 		Environment:     config.Environment,
 	}
-	up.config.logger = config.Logger.With(slog.String("module", strings.ToLower(up.config.Title)))
+	up.Config.logger = config.Logger.With(slog.String("module", strings.ToLower(up.Config.Title)))
 	up.usersEnabled = false
 	up.Tracker = nil
 
-	binaryPath, exists := up.config.Environment["UUPD_DISTROBOX_BINARY"]
+	binaryPath, exists := up.Config.Environment["UUPD_DISTROBOX_BINARY"]
 	if !exists || binaryPath == "" {
 		up.binaryPath = "/usr/bin/distrobox"
 	} else {
@@ -64,23 +64,23 @@ func (up DistroboxUpdater) Check() (bool, error) {
 func (up DistroboxUpdater) Update() (*[]CommandOutput, error) {
 	var finalOutput = []CommandOutput{}
 
-	if up.config.DryRun {
-		percent.ChangeTrackerMessageFancy(*up.Tracker.Writer, up.Tracker.Tracker, up.Tracker.Progress, percent.TrackerMessage{Title: up.config.Title, Description: up.config.Description})
+	if up.Config.DryRun {
+		percent.ChangeTrackerMessageFancy(*up.Tracker.Writer, up.Tracker.Tracker, up.Tracker.Progress, percent.TrackerMessage{Title: up.Config.Title, Description: up.Config.Description})
 		up.Tracker.Tracker.IncrementSection(nil)
 
 		var err error = nil
 		for _, user := range up.users {
 			up.Tracker.Tracker.IncrementSection(err)
-			percent.ChangeTrackerMessageFancy(*up.Tracker.Writer, up.Tracker.Tracker, up.Tracker.Progress, percent.TrackerMessage{Title: up.config.Title, Description: *up.config.UserDescription + " " + user.Name})
+			percent.ChangeTrackerMessageFancy(*up.Tracker.Writer, up.Tracker.Tracker, up.Tracker.Progress, percent.TrackerMessage{Title: up.Config.Title, Description: *up.Config.UserDescription + " " + user.Name})
 		}
 		return &finalOutput, nil
 	}
 
-	percent.ChangeTrackerMessageFancy(*up.Tracker.Writer, up.Tracker.Tracker, up.Tracker.Progress, percent.TrackerMessage{Title: up.config.Title, Description: up.config.Description})
+	percent.ChangeTrackerMessageFancy(*up.Tracker.Writer, up.Tracker.Tracker, up.Tracker.Progress, percent.TrackerMessage{Title: up.Config.Title, Description: up.Config.Description})
 	cli := []string{up.binaryPath, "upgrade", "-a"}
-	out, err := session.RunUID(up.config.logger, slog.LevelDebug, 0, cli, nil)
+	out, err := session.RunUID(up.Config.logger, slog.LevelDebug, 0, cli, nil)
 	tmpout := CommandOutput{}.New(out, err)
-	tmpout.Context = up.config.Description
+	tmpout.Context = up.Config.Description
 	tmpout.Cli = cli
 	tmpout.Failure = err != nil
 	finalOutput = append(finalOutput, *tmpout)
@@ -88,10 +88,10 @@ func (up DistroboxUpdater) Update() (*[]CommandOutput, error) {
 	err = nil
 	for _, user := range up.users {
 		up.Tracker.Tracker.IncrementSection(err)
-		context := *up.config.UserDescription + " " + user.Name
-		percent.ChangeTrackerMessageFancy(*up.Tracker.Writer, up.Tracker.Tracker, up.Tracker.Progress, percent.TrackerMessage{Title: up.config.Title, Description: *up.config.UserDescription + " " + user.Name})
+		context := *up.Config.UserDescription + " " + user.Name
+		percent.ChangeTrackerMessageFancy(*up.Tracker.Writer, up.Tracker.Tracker, up.Tracker.Progress, percent.TrackerMessage{Title: up.Config.Title, Description: *up.Config.UserDescription + " " + user.Name})
 		cli := []string{up.binaryPath, "upgrade", "-a"}
-		out, err := session.RunUID(up.config.logger, slog.LevelDebug, user.UID, cli, nil)
+		out, err := session.RunUID(up.Config.logger, slog.LevelDebug, user.UID, cli, nil)
 		tmpout = CommandOutput{}.New(out, err)
 		tmpout.Context = context
 		tmpout.Cli = cli
@@ -101,18 +101,10 @@ func (up DistroboxUpdater) Update() (*[]CommandOutput, error) {
 	return &finalOutput, nil
 }
 
-func (up DistroboxUpdater) Config() DriverConfiguration {
-	return up.config
+func (up *DistroboxUpdater) Logger() *slog.Logger {
+	return up.Config.logger
 }
 
-func (up DistroboxUpdater) SetEnabled(value bool) {
-	up.config.Enabled = value
-}
-
-func (up DistroboxUpdater) Logger() *slog.Logger {
-	return up.config.logger
-}
-
-func (up DistroboxUpdater) SetLogger(logger *slog.Logger) {
-	up.config.logger = logger
+func (up *DistroboxUpdater) SetLogger(logger *slog.Logger) {
+	up.Config.logger = logger
 }

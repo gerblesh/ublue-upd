@@ -19,19 +19,19 @@ type rpmOstreeStatus struct {
 }
 
 type RpmOstreeUpdater struct {
-	config     DriverConfiguration
+	Config     DriverConfiguration
 	BinaryPath string
 }
 
 func (up RpmOstreeUpdater) Outdated() (bool, error) {
-	if up.config.DryRun {
+	if up.Config.DryRun {
 		return false, nil
 	}
 	oneMonthAgo := time.Now().AddDate(0, -1, 0)
 	var timestamp time.Time
 
 	cmd := exec.Command(up.BinaryPath, "status", "--json", "--booted")
-	out, err := session.RunLog(up.config.logger, slog.LevelDebug, cmd)
+	out, err := session.RunLog(up.Config.logger, slog.LevelDebug, cmd)
 	if err != nil {
 		return false, err
 	}
@@ -50,7 +50,7 @@ func (up RpmOstreeUpdater) Update() (*[]CommandOutput, error) {
 	var cmd *exec.Cmd
 	binaryPath := up.BinaryPath
 	cli := []string{binaryPath, "upgrade"}
-	out, err := session.RunLog(up.config.logger, slog.LevelDebug, cmd)
+	out, err := session.RunLog(up.Config.logger, slog.LevelDebug, cmd)
 	tmpout := CommandOutput{}.New(out, err)
 	tmpout.Cli = cli
 	tmpout.Failure = err != nil
@@ -60,7 +60,7 @@ func (up RpmOstreeUpdater) Update() (*[]CommandOutput, error) {
 }
 
 func (up RpmOstreeUpdater) Steps() int {
-	if up.config.Enabled {
+	if up.Config.Enabled {
 		return 1
 	}
 	return 0
@@ -81,19 +81,19 @@ func BootcCompatible(binaryPath string) (bool, error) {
 }
 
 func (up RpmOstreeUpdater) New(config UpdaterInitConfiguration) (RpmOstreeUpdater, error) {
-	up.config = DriverConfiguration{
+	up.Config = DriverConfiguration{
 		Title:       "System",
 		Description: "System Updates",
 		Enabled:     !config.Ci,
 		DryRun:      config.DryRun,
 		Environment: config.Environment,
 	}
-	up.config.logger = config.Logger.With(slog.String("module", strings.ToLower(up.config.Title)))
-	if up.config.DryRun {
+	up.Config.logger = config.Logger.With(slog.String("module", strings.ToLower(up.Config.Title)))
+	if up.Config.DryRun {
 		return up, nil
 	}
 
-	binaryPath, exists := up.config.Environment["UUPD_RPMOSTREE_BINARY"]
+	binaryPath, exists := up.Config.Environment["UUPD_RPMOSTREE_BINARY"]
 	if !exists || binaryPath == "" {
 		up.BinaryPath = "/usr/bin/rpm-ostree"
 	} else {
@@ -104,7 +104,7 @@ func (up RpmOstreeUpdater) New(config UpdaterInitConfiguration) (RpmOstreeUpdate
 }
 
 func (up RpmOstreeUpdater) Check() (bool, error) {
-	if up.config.DryRun {
+	if up.Config.DryRun {
 		return true, nil
 	}
 
@@ -117,22 +117,14 @@ func (up RpmOstreeUpdater) Check() (bool, error) {
 	}
 
 	updateNecessary := strings.Contains(string(out), "AvailableUpdate")
-	up.config.logger.Debug("Executed update check", slog.String("output", string(out)), slog.Bool("update", updateNecessary))
+	up.Config.logger.Debug("Executed update check", slog.String("output", string(out)), slog.Bool("update", updateNecessary))
 	return updateNecessary, nil
 }
 
-func (up RpmOstreeUpdater) Config() DriverConfiguration {
-	return up.config
+func (up *RpmOstreeUpdater) Logger() *slog.Logger {
+	return up.Config.logger
 }
 
-func (up RpmOstreeUpdater) SetEnabled(value bool) {
-	up.config.Enabled = value
-}
-
-func (up RpmOstreeUpdater) Logger() *slog.Logger {
-	return up.config.logger
-}
-
-func (up RpmOstreeUpdater) SetLogger(logger *slog.Logger) {
-	up.config.logger = logger
+func (up *RpmOstreeUpdater) SetLogger(logger *slog.Logger) {
+	up.Config.logger = logger
 }

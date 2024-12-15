@@ -10,7 +10,7 @@ import (
 )
 
 type FlatpakUpdater struct {
-	config       DriverConfiguration
+	Config       DriverConfiguration
 	Tracker      *TrackerConfiguration
 	binaryPath   string
 	users        []session.User
@@ -18,7 +18,7 @@ type FlatpakUpdater struct {
 }
 
 func (up FlatpakUpdater) Steps() int {
-	if up.config.Enabled {
+	if up.Config.Enabled {
 		var steps = 1
 		if up.usersEnabled {
 			steps += len(up.users)
@@ -30,7 +30,7 @@ func (up FlatpakUpdater) Steps() int {
 
 func (up FlatpakUpdater) New(config UpdaterInitConfiguration) (FlatpakUpdater, error) {
 	userdesc := "Apps for User:"
-	up.config = DriverConfiguration{
+	up.Config = DriverConfiguration{
 		Title:           "Flatpak",
 		Description:     "System Apps",
 		UserDescription: &userdesc,
@@ -39,11 +39,11 @@ func (up FlatpakUpdater) New(config UpdaterInitConfiguration) (FlatpakUpdater, e
 		DryRun:          config.DryRun,
 		Environment:     config.Environment,
 	}
-	up.config.logger = config.Logger.With(slog.String("module", strings.ToLower(up.config.Title)))
+	up.Config.logger = config.Logger.With(slog.String("module", strings.ToLower(up.Config.Title)))
 	up.usersEnabled = false
 	up.Tracker = nil
 
-	binaryPath, exists := up.config.Environment["UUPD_FLATPAK_BINARY"]
+	binaryPath, exists := up.Config.Environment["UUPD_FLATPAK_BINARY"]
 	if !exists || binaryPath == "" {
 		up.binaryPath = "/usr/bin/flatpak"
 	} else {
@@ -65,24 +65,24 @@ func (up FlatpakUpdater) Check() (bool, error) {
 func (up FlatpakUpdater) Update() (*[]CommandOutput, error) {
 	var finalOutput = []CommandOutput{}
 
-	if up.config.DryRun {
-		percent.ChangeTrackerMessageFancy(*up.Tracker.Writer, up.Tracker.Tracker, up.Tracker.Progress, percent.TrackerMessage{Title: up.config.Title, Description: up.config.Description})
+	if up.Config.DryRun {
+		percent.ChangeTrackerMessageFancy(*up.Tracker.Writer, up.Tracker.Tracker, up.Tracker.Progress, percent.TrackerMessage{Title: up.Config.Title, Description: up.Config.Description})
 		up.Tracker.Tracker.IncrementSection(nil)
 
 		var err error = nil
 		for _, user := range up.users {
 			up.Tracker.Tracker.IncrementSection(err)
-			percent.ChangeTrackerMessageFancy(*up.Tracker.Writer, up.Tracker.Tracker, up.Tracker.Progress, percent.TrackerMessage{Title: up.config.Title, Description: *up.config.UserDescription + " " + user.Name})
+			percent.ChangeTrackerMessageFancy(*up.Tracker.Writer, up.Tracker.Tracker, up.Tracker.Progress, percent.TrackerMessage{Title: up.Config.Title, Description: *up.Config.UserDescription + " " + user.Name})
 		}
 		return &finalOutput, nil
 	}
 
-	percent.ChangeTrackerMessageFancy(*up.Tracker.Writer, up.Tracker.Tracker, up.Tracker.Progress, percent.TrackerMessage{Title: up.config.Title, Description: up.config.Description})
+	percent.ChangeTrackerMessageFancy(*up.Tracker.Writer, up.Tracker.Tracker, up.Tracker.Progress, percent.TrackerMessage{Title: up.Config.Title, Description: up.Config.Description})
 	cli := []string{up.binaryPath, "update", "-y", "--noninteractive"}
 	flatpakCmd := exec.Command(cli[0], cli[1:]...)
-	out, err := session.RunLog(up.config.logger, slog.LevelDebug, flatpakCmd)
+	out, err := session.RunLog(up.Config.logger, slog.LevelDebug, flatpakCmd)
 	tmpout := CommandOutput{}.New(out, err)
-	tmpout.Context = up.config.Description
+	tmpout.Context = up.Config.Description
 	tmpout.Cli = cli
 	tmpout.Failure = err != nil
 	finalOutput = append(finalOutput, *tmpout)
@@ -90,10 +90,10 @@ func (up FlatpakUpdater) Update() (*[]CommandOutput, error) {
 	err = nil
 	for _, user := range up.users {
 		up.Tracker.Tracker.IncrementSection(err)
-		context := *up.config.UserDescription + " " + user.Name
-		percent.ChangeTrackerMessageFancy(*up.Tracker.Writer, up.Tracker.Tracker, up.Tracker.Progress, percent.TrackerMessage{Title: up.config.Title, Description: context})
+		context := *up.Config.UserDescription + " " + user.Name
+		percent.ChangeTrackerMessageFancy(*up.Tracker.Writer, up.Tracker.Tracker, up.Tracker.Progress, percent.TrackerMessage{Title: up.Config.Title, Description: context})
 		cli := []string{up.binaryPath, "update", "-y"}
-		out, err := session.RunUID(up.config.logger, slog.LevelDebug, user.UID, cli, nil)
+		out, err := session.RunUID(up.Config.logger, slog.LevelDebug, user.UID, cli, nil)
 		tmpout = CommandOutput{}.New(out, err)
 		tmpout.Context = context
 		tmpout.Cli = cli
@@ -103,18 +103,10 @@ func (up FlatpakUpdater) Update() (*[]CommandOutput, error) {
 	return &finalOutput, nil
 }
 
-func (up FlatpakUpdater) Config() DriverConfiguration {
-	return up.config
+func (up *FlatpakUpdater) Logger() *slog.Logger {
+	return up.Config.logger
 }
 
-func (up FlatpakUpdater) SetEnabled(value bool) {
-	up.config.Enabled = value
-}
-
-func (up FlatpakUpdater) Logger() *slog.Logger {
-	return up.config.logger
-}
-
-func (up FlatpakUpdater) SetLogger(logger *slog.Logger) {
-	up.config.logger = logger
+func (up *FlatpakUpdater) SetLogger(logger *slog.Logger) {
+	up.Config.logger = logger
 }
