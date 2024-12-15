@@ -17,18 +17,18 @@ type rpmOstreeStatus struct {
 }
 
 type RpmOstreeUpdater struct {
-	Config     DriverConfiguration
+	config     DriverConfiguration
 	BinaryPath string
 }
 
-func (dr RpmOstreeUpdater) Outdated() (bool, error) {
-	if dr.Config.DryRun {
+func (up RpmOstreeUpdater) Outdated() (bool, error) {
+	if up.config.DryRun {
 		return false, nil
 	}
 	oneMonthAgo := time.Now().AddDate(0, -1, 0)
 	var timestamp time.Time
 
-	cmd := exec.Command(dr.BinaryPath, "status", "--json", "--booted")
+	cmd := exec.Command(up.BinaryPath, "status", "--json", "--booted")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return false, err
@@ -58,19 +58,8 @@ func (dr RpmOstreeUpdater) Update() (*[]CommandOutput, error) {
 	return &finalOutput, err
 }
 
-func (dr RpmOstreeUpdater) UpdateAvailable() (bool, error) {
-	// This function may or may not be accurate, rpm-ostree updgrade --check has issues... https://github.com/coreos/rpm-ostree/issues/1579
-	// Not worried because we will end up removing rpm-ostree from the equation soon
-	cmd := exec.Command(dr.BinaryPath, "upgrade", "--check")
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return true, err
-	}
-	return strings.Contains(string(out), "AvailableUpdate"), nil
-}
-
 func (up RpmOstreeUpdater) Steps() int {
-	if up.Config.Enabled {
+	if up.config.Enabled {
 		return 1
 	}
 	return 0
@@ -91,7 +80,7 @@ func BootcCompatible(binaryPath string) (bool, error) {
 }
 
 func (up RpmOstreeUpdater) New(config UpdaterInitConfiguration) (RpmOstreeUpdater, error) {
-	up.Config = DriverConfiguration{
+	up.config = DriverConfiguration{
 		Title:       "System",
 		Description: "System Updates",
 		Enabled:     !config.Ci,
@@ -99,11 +88,11 @@ func (up RpmOstreeUpdater) New(config UpdaterInitConfiguration) (RpmOstreeUpdate
 		Environment: config.Environment,
 	}
 
-	if up.Config.DryRun {
+	if up.config.DryRun {
 		return up, nil
 	}
 
-	binaryPath, exists := up.Config.Environment["UUPD_RPMOSTREE_BINARY"]
+	binaryPath, exists := up.config.Environment["UUPD_RPMOSTREE_BINARY"]
 	if !exists || binaryPath == "" {
 		up.BinaryPath = "/usr/bin/rpm-ostree"
 	} else {
@@ -114,9 +103,24 @@ func (up RpmOstreeUpdater) New(config UpdaterInitConfiguration) (RpmOstreeUpdate
 }
 
 func (up RpmOstreeUpdater) Check() (bool, error) {
-	if up.Config.DryRun {
+	if up.config.DryRun {
 		return true, nil
 	}
 
-	return up.UpdateAvailable()
+	// This function may or may not be accurate, rpm-ostree updgrade --check has issues... https://github.com/coreos/rpm-ostree/issues/1579
+	// Not worried because we will end up removing rpm-ostree from the equation soon
+	cmd := exec.Command(up.BinaryPath, "upgrade", "--check")
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return true, err
+	}
+	return strings.Contains(string(out), "AvailableUpdate"), nil
+}
+
+func (up RpmOstreeUpdater) Config() DriverConfiguration {
+	return up.config
+}
+
+func (up RpmOstreeUpdater) SetEnabled(value bool) {
+	up.config.Enabled = value
 }

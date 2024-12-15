@@ -8,7 +8,7 @@ import (
 )
 
 type FlatpakUpdater struct {
-	Config       DriverConfiguration
+	config       DriverConfiguration
 	Tracker      *TrackerConfiguration
 	binaryPath   string
 	users        []session.User
@@ -16,7 +16,7 @@ type FlatpakUpdater struct {
 }
 
 func (up FlatpakUpdater) Steps() int {
-	if up.Config.Enabled {
+	if up.config.Enabled {
 		var steps = 1
 		if up.usersEnabled {
 			steps += len(up.users)
@@ -28,7 +28,7 @@ func (up FlatpakUpdater) Steps() int {
 
 func (up FlatpakUpdater) New(config UpdaterInitConfiguration) (FlatpakUpdater, error) {
 	userdesc := "Apps for User:"
-	up.Config = DriverConfiguration{
+	up.config = DriverConfiguration{
 		Title:           "Flatpak",
 		Description:     "System Apps",
 		UserDescription: &userdesc,
@@ -40,7 +40,7 @@ func (up FlatpakUpdater) New(config UpdaterInitConfiguration) (FlatpakUpdater, e
 	up.usersEnabled = false
 	up.Tracker = nil
 
-	binaryPath, exists := up.Config.Environment["UUPD_FLATPAK_BINARY"]
+	binaryPath, exists := up.config.Environment["UUPD_FLATPAK_BINARY"]
 	if !exists || binaryPath == "" {
 		up.binaryPath = "/usr/bin/flatpak"
 	} else {
@@ -55,31 +55,31 @@ func (up *FlatpakUpdater) SetUsers(users []session.User) {
 	up.usersEnabled = true
 }
 
-func (up FlatpakUpdater) Check() (*[]CommandOutput, error) {
-	return nil, nil
+func (up FlatpakUpdater) Check() (bool, error) {
+	return true, nil
 }
 
 func (up FlatpakUpdater) Update() (*[]CommandOutput, error) {
 	var finalOutput = []CommandOutput{}
 
-	if up.Config.DryRun {
-		percent.ChangeTrackerMessageFancy(*up.Tracker.Writer, up.Tracker.Tracker, up.Tracker.Progress, percent.TrackerMessage{Title: up.Config.Title, Description: up.Config.Description})
+	if up.config.DryRun {
+		percent.ChangeTrackerMessageFancy(*up.Tracker.Writer, up.Tracker.Tracker, up.Tracker.Progress, percent.TrackerMessage{Title: up.config.Title, Description: up.config.Description})
 		up.Tracker.Tracker.IncrementSection(nil)
 
 		var err error = nil
 		for _, user := range up.users {
 			up.Tracker.Tracker.IncrementSection(err)
-			percent.ChangeTrackerMessageFancy(*up.Tracker.Writer, up.Tracker.Tracker, up.Tracker.Progress, percent.TrackerMessage{Title: up.Config.Title, Description: *up.Config.UserDescription + " " + user.Name})
+			percent.ChangeTrackerMessageFancy(*up.Tracker.Writer, up.Tracker.Tracker, up.Tracker.Progress, percent.TrackerMessage{Title: up.config.Title, Description: *up.config.UserDescription + " " + user.Name})
 		}
 		return &finalOutput, nil
 	}
 
-	percent.ChangeTrackerMessageFancy(*up.Tracker.Writer, up.Tracker.Tracker, up.Tracker.Progress, percent.TrackerMessage{Title: up.Config.Title, Description: up.Config.Description})
+	percent.ChangeTrackerMessageFancy(*up.Tracker.Writer, up.Tracker.Tracker, up.Tracker.Progress, percent.TrackerMessage{Title: up.config.Title, Description: up.config.Description})
 	cli := []string{up.binaryPath, "update", "-y"}
 	flatpakCmd := exec.Command(cli[0], cli[1:]...)
 	out, err := flatpakCmd.CombinedOutput()
 	tmpout := CommandOutput{}.New(out, err)
-	tmpout.Context = up.Config.Description
+	tmpout.Context = up.config.Description
 	tmpout.Cli = cli
 	tmpout.Failure = err != nil
 	finalOutput = append(finalOutput, *tmpout)
@@ -87,8 +87,8 @@ func (up FlatpakUpdater) Update() (*[]CommandOutput, error) {
 	err = nil
 	for _, user := range up.users {
 		up.Tracker.Tracker.IncrementSection(err)
-		context := *up.Config.UserDescription + " " + user.Name
-		percent.ChangeTrackerMessageFancy(*up.Tracker.Writer, up.Tracker.Tracker, up.Tracker.Progress, percent.TrackerMessage{Title: up.Config.Title, Description: context})
+		context := *up.config.UserDescription + " " + user.Name
+		percent.ChangeTrackerMessageFancy(*up.Tracker.Writer, up.Tracker.Tracker, up.Tracker.Progress, percent.TrackerMessage{Title: up.config.Title, Description: context})
 		cli := []string{up.binaryPath, "update", "-y"}
 		out, err := session.RunUID(user.UID, cli, nil)
 		tmpout = CommandOutput{}.New(out, err)
@@ -98,4 +98,12 @@ func (up FlatpakUpdater) Update() (*[]CommandOutput, error) {
 		finalOutput = append(finalOutput, *tmpout)
 	}
 	return &finalOutput, nil
+}
+
+func (up FlatpakUpdater) Config() DriverConfiguration {
+	return up.config
+}
+
+func (up FlatpakUpdater) SetEnabled(value bool) {
+	up.config.Enabled = value
 }

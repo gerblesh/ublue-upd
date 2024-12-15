@@ -2,6 +2,7 @@ package drv
 
 import (
 	"encoding/json"
+	"log/slog"
 	"os/exec"
 	"strings"
 	"time"
@@ -29,18 +30,19 @@ type bootcStatus struct {
 type SystemUpdateDriver interface {
 	Steps() int
 	Outdated() (bool, error)
-	UpdateAvailable() (bool, error)
 	Check() (bool, error)
 	Update() (*[]CommandOutput, error)
+	Config() DriverConfiguration
+	SetEnabled(value bool)
 }
 
 type SystemUpdater struct {
-	Config     DriverConfiguration
+	config     DriverConfiguration
 	BinaryPath string
 }
 
 func (dr SystemUpdater) Outdated() (bool, error) {
-	if dr.Config.DryRun {
+	if dr.config.DryRun {
 		return false, nil
 	}
 	oneMonthAgo := time.Now().AddDate(0, -1, 0)
@@ -77,24 +79,15 @@ func (dr SystemUpdater) Update() (*[]CommandOutput, error) {
 	return &finalOutput, err
 }
 
-func (dr SystemUpdater) UpdateAvailable() (bool, error) {
-	cmd := exec.Command(dr.BinaryPath, "upgrade", "--check")
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return true, err
-	}
-	return !strings.Contains(string(out), "No changes in:"), nil
-}
-
 func (up SystemUpdater) Steps() int {
-	if up.Config.Enabled {
+	if up.config.Enabled {
 		return 1
 	}
 	return 0
 }
 
 func (up SystemUpdater) New(config UpdaterInitConfiguration) (SystemUpdater, error) {
-	up.Config = DriverConfiguration{
+	up.config = DriverConfiguration{
 		Title:       "Bootc",
 		Description: "System Image",
 		Enabled:     !config.Ci,
@@ -102,24 +95,40 @@ func (up SystemUpdater) New(config UpdaterInitConfiguration) (SystemUpdater, err
 		Environment: config.Environment,
 	}
 
-	if up.Config.DryRun {
+	if up.config.DryRun {
 		return up, nil
 	}
 
-	bootcBinaryPath, exists := up.Config.Environment["UUPD_BOOTC_BINARY"]
+	bootcBinaryPath, exists := up.config.Environment["UUPD_BOOTC_BINARY"]
 	if !exists || bootcBinaryPath == "" {
 		up.BinaryPath = "/usr/bin/bootc"
 	} else {
 		up.BinaryPath = bootcBinaryPath
 	}
+	slog.Debug("Reported bootc binary path", slog.String("binary", up.BinaryPath))
 
 	return up, nil
 }
 
 func (up SystemUpdater) Check() (bool, error) {
-	if up.Config.DryRun {
+	if up.config.DryRun {
 		return true, nil
 	}
 
-	return up.UpdateAvailable()
+	cmd := exec.Command(up.BinaryPath, "upgrade", "--check")
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return true, err
+	}
+	updateNecessary := !strings.Contains(string(out), "No changes in:")
+	slog.Debug("Executed bootc update check", slog.String("output", string(out)), slog.Bool("necessary_update", updateNecessary))
+	return updateNecessary, nil
+}
+
+func (up SystemUpdater) Config() DriverConfiguration {
+	return up.config
+}
+
+func (up SystemUpdater) SetEnabled(value bool) {
+	up.config.Enabled = value
 }

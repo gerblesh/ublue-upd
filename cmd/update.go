@@ -65,14 +65,14 @@ func Update(cmd *cobra.Command, args []string) {
 	initConfiguration.Verbose = verboseRun
 
 	brewUpdater, err := drv.BrewUpdater{}.New(*initConfiguration)
-	brewUpdater.Config.Enabled = err == nil
+	brewUpdater.SetEnabled(err == nil)
 
 	flatpakUpdater, err := drv.FlatpakUpdater{}.New(*initConfiguration)
-	flatpakUpdater.Config.Enabled = err == nil
+	flatpakUpdater.SetEnabled(err == nil)
 	flatpakUpdater.SetUsers(users)
 
 	distroboxUpdater, err := drv.DistroboxUpdater{}.New(*initConfiguration)
-	distroboxUpdater.Config.Enabled = err == nil
+	distroboxUpdater.SetEnabled(err == nil)
 	distroboxUpdater.SetUsers(users)
 
 	var enableUpd bool = true
@@ -97,11 +97,11 @@ func Update(cmd *cobra.Command, args []string) {
 		slog.Debug("Using rpm-ostree fallback as system driver")
 	}
 
-	systemUpdater.Config.Enabled = enableUpd && isBootc
-	rpmOstreeUpdater.Config.Enabled = enableUpd && !isBootc
+	systemUpdater.SetEnabled(enableUpd && isBootc)
+	rpmOstreeUpdater.SetEnabled(enableUpd && !isBootc)
 
 	var mainSystemDriver drv.SystemUpdateDriver = systemUpdater
-	if !systemUpdater.Config.Enabled {
+	if !systemUpdater.Config().Enabled {
 		mainSystemDriver = rpmOstreeUpdater
 	}
 
@@ -110,9 +110,7 @@ func Update(cmd *cobra.Command, args []string) {
 		slog.Error("Failed checking for updates")
 	}
 
-	if !enableUpd {
-		slog.Debug("No system update found, disabiling module")
-	}
+	slog.Debug("System Updater module status", slog.Bool("enabled", enableUpd))
 
 	totalSteps := brewUpdater.Steps() + flatpakUpdater.Steps() + distroboxUpdater.Steps()
 	if enableUpd {
@@ -164,29 +162,19 @@ func Update(cmd *cobra.Command, args []string) {
 		slog.Warn(OUTDATED_WARNING)
 	}
 
-	if enableUpd {
-		percent.ChangeTrackerMessageFancy(pw, tracker, progressEnabled, percent.TrackerMessage{Title: systemUpdater.Config.Title, Description: systemUpdater.Config.Description})
+	updaters := []drv.UpdateDriver{mainSystemDriver, brewUpdater, flatpakUpdater, distroboxUpdater}
+
+	for _, updater := range updaters {
+		drvConfig := updater.Config()
+		slog.Debug(fmt.Sprintf("%s module", drvConfig.Title), slog.Any("configuration", drvConfig))
+		if !drvConfig.Enabled {
+			continue
+		}
+		if !drvConfig.MultiUser {
+			percent.ChangeTrackerMessageFancy(pw, tracker, progressEnabled, percent.TrackerMessage{Title: drvConfig.Title, Description: drvConfig.Description})
+		}
 		var out *[]drv.CommandOutput
-		out, err = mainSystemDriver.Update()
-		outputs = append(outputs, *out...)
-		tracker.IncrementSection(err)
-	}
-
-	if brewUpdater.Config.Enabled {
-		percent.ChangeTrackerMessageFancy(pw, tracker, progressEnabled, percent.TrackerMessage{Title: brewUpdater.Config.Title, Description: brewUpdater.Config.Description})
-		out, err := brewUpdater.Update()
-		outputs = append(outputs, *out...)
-		tracker.IncrementSection(err)
-	}
-
-	if flatpakUpdater.Config.Enabled {
-		out, err := flatpakUpdater.Update()
-		outputs = append(outputs, *out...)
-		tracker.IncrementSection(err)
-	}
-
-	if distroboxUpdater.Config.Enabled {
-		out, err := distroboxUpdater.Update()
+		out, err = updater.Update()
 		outputs = append(outputs, *out...)
 		tracker.IncrementSection(err)
 	}

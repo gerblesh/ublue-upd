@@ -25,26 +25,25 @@ func (up BrewUpdater) GetBrewUID() (int, error) {
 }
 
 func (up BrewUpdater) Steps() int {
-	if up.Config.Enabled {
+	if up.config.Enabled {
 		return 1
 	}
 	return 0
 }
 
-func (up BrewUpdater) Check() (*[]CommandOutput, error) {
-	// TODO: implement
-	return nil, nil
+func (up BrewUpdater) Check() (bool, error) {
+	return true, nil
 }
 
 func (up BrewUpdater) Update() (*[]CommandOutput, error) {
 	var final_output = []CommandOutput{}
 
-	if up.Config.DryRun {
+	if up.config.DryRun {
 		return &final_output, nil
 	}
 
 	cli := []string{up.BrewPath, "update"}
-	out, err := session.RunUID(up.BaseUser, cli, up.Config.Environment)
+	out, err := session.RunUID(up.BaseUser, cli, up.config.Environment)
 	tmpout := CommandOutput{}.New(out, err)
 	tmpout.Context = "Brew Update"
 	tmpout.Cli = cli
@@ -56,7 +55,7 @@ func (up BrewUpdater) Update() (*[]CommandOutput, error) {
 	}
 
 	cli = []string{up.BrewPath, "upgrade"}
-	out, err = session.RunUID(up.BaseUser, cli, up.Config.Environment)
+	out, err = session.RunUID(up.BaseUser, cli, up.config.Environment)
 	tmpout = CommandOutput{}.New(out, err)
 	tmpout.Context = "Brew Upgrade"
 	tmpout.Cli = cli
@@ -66,7 +65,7 @@ func (up BrewUpdater) Update() (*[]CommandOutput, error) {
 }
 
 type BrewUpdater struct {
-	Config     DriverConfiguration
+	config     DriverConfiguration
 	BaseUser   int
 	BrewRepo   string
 	BrewPrefix string
@@ -76,7 +75,7 @@ type BrewUpdater struct {
 
 func (up BrewUpdater) New(config UpdaterInitConfiguration) (BrewUpdater, error) {
 
-	up.Config = DriverConfiguration{
+	up.config = DriverConfiguration{
 		Title:       "Brew",
 		Description: "CLI Apps",
 		Enabled:     true,
@@ -85,32 +84,32 @@ func (up BrewUpdater) New(config UpdaterInitConfiguration) (BrewUpdater, error) 
 		Environment: config.Environment,
 	}
 
-	brewPrefix, exists := up.Config.Environment["HOMEBREW_PREFIX"]
+	brewPrefix, exists := up.config.Environment["HOMEBREW_PREFIX"]
 	if !exists || brewPrefix == "" {
 		up.BrewPrefix = "/home/linuxbrew/.linuxbrew"
 	} else {
 		up.BrewPrefix = brewPrefix
 	}
-	brewRepo, exists := up.Config.Environment["HOMEBREW_REPOSITORY"]
+	brewRepo, exists := up.config.Environment["HOMEBREW_REPOSITORY"]
 	if !exists || brewRepo == "" {
 		up.BrewRepo = fmt.Sprintf("%s/Homebrew", up.BrewPrefix)
 	} else {
 		up.BrewRepo = brewRepo
 	}
-	brewCellar, exists := up.Config.Environment["HOMEBREW_CELLAR"]
+	brewCellar, exists := up.config.Environment["HOMEBREW_CELLAR"]
 	if !exists || brewCellar == "" {
 		up.BrewCellar = fmt.Sprintf("%s/Cellar", up.BrewPrefix)
 	} else {
 		up.BrewCellar = brewCellar
 	}
-	brewPath, exists := up.Config.Environment["HOMEBREW_PATH"]
+	brewPath, exists := up.config.Environment["HOMEBREW_PATH"]
 	if !exists || brewPath == "" {
 		up.BrewPath = fmt.Sprintf("%s/bin/brew", up.BrewPrefix)
 	} else {
 		up.BrewPath = brewPath
 	}
 
-	if up.Config.DryRun {
+	if up.config.DryRun {
 		return up, nil
 	}
 
@@ -121,4 +120,11 @@ func (up BrewUpdater) New(config UpdaterInitConfiguration) (BrewUpdater, error) 
 	up.BaseUser = uid
 
 	return up, nil
+}
+
+func (up BrewUpdater) Config() DriverConfiguration {
+	return up.config
+}
+func (up BrewUpdater) SetEnabled(value bool) {
+	up.config.Enabled = value
 }

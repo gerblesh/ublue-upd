@@ -68,7 +68,7 @@ type DriverConfiguration struct {
 	Enabled         bool
 	MultiUser       bool
 	DryRun          bool
-	Environment     EnvironmentMap
+	Environment     EnvironmentMap `json:"-"`
 	UserDescription *string
 }
 
@@ -80,9 +80,10 @@ type TrackerConfiguration struct {
 
 type UpdateDriver interface {
 	Steps() int
-	Check() (*[]CommandOutput, error)
+	Check() (bool, error)
 	Update() (*[]CommandOutput, error)
-	New(config UpdaterInitConfiguration) (*UpdateDriver, error)
+	Config() DriverConfiguration
+	SetEnabled(value bool)
 }
 
 type MultiUserUpdateDriver interface {
