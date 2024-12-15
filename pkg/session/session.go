@@ -1,9 +1,13 @@
 package session
 
 import (
+	"bufio"
 	"fmt"
-	"github.com/godbus/dbus/v5"
+	"io"
+	"log/slog"
 	"os/exec"
+
+	"github.com/godbus/dbus/v5"
 )
 
 type User struct {
@@ -11,7 +15,29 @@ type User struct {
 	Name string
 }
 
-func RunUID(uid int, command []string, env map[string]string) ([]byte, error) {
+// Runs any specified Command while logging it to the logger
+// Made to work just like (Command).CombinedOutput()
+func RunLog(logger *slog.Logger, level slog.Level, command *exec.Cmd) ([]byte, error) {
+	if logger == nil {
+		return command.CombinedOutput()
+	}
+
+	stdout, _ := command.StdoutPipe()
+	stderr, _ := command.StderrPipe()
+	multiReader := io.MultiReader(stdout, stderr)
+
+	command.Start()
+	scanner := bufio.NewScanner(multiReader)
+	scanner.Split(bufio.ScanLines)
+	for scanner.Scan() {
+		logger.With(slog.Bool("subcommand", true)).Log(nil, level, scanner.Text())
+	}
+	command.Wait()
+
+	return scanner.Bytes(), scanner.Err()
+}
+
+func RunUID(logger *slog.Logger, level slog.Level, uid int, command []string, env map[string]string) ([]byte, error) {
 	// Just fork systemd-run, we don't need to rewrite systemd-run with dbus
 	cmdArgs := []string{
 		"/usr/bin/systemd-run",
@@ -27,7 +53,7 @@ func RunUID(uid int, command []string, env map[string]string) ([]byte, error) {
 
 	cmd := exec.Command(cmdArgs[0], cmdArgs[1:]...)
 
-	return cmd.CombinedOutput()
+	return RunLog(logger, level, cmd)
 }
 
 func ListUsers() ([]User, error) {
@@ -77,7 +103,7 @@ func Notify(summary string, body string) error {
 	}
 	for _, user := range users {
 		// we don't care if these exit
-		_, _ = RunUID(user.UID, []string{"/usr/bin/notify-send", "--app-name", "uupd", summary, body}, nil)
+		_, _ = RunUID(slog.Default(), slog.LevelDebug, user.UID, []string{"/usr/bin/notify-send", "--app-name", "uupd", summary, body}, nil)
 	}
 	return nil
 }

@@ -1,6 +1,7 @@
 package drv
 
 import (
+	"log/slog"
 	"os"
 	"strings"
 
@@ -16,6 +17,7 @@ type UpdaterInitConfiguration struct {
 	Ci          bool
 	Verbose     bool
 	Environment EnvironmentMap
+	Logger      *slog.Logger
 }
 
 func GetEnvironment(data []string, getkeyval func(item string) (key, val string)) map[string]string {
@@ -36,6 +38,7 @@ func (up UpdaterInitConfiguration) New() *UpdaterInitConfiguration {
 		val = splits[1]
 		return
 	})
+	up.Logger = slog.Default()
 
 	return &up
 }
@@ -69,6 +72,7 @@ type DriverConfiguration struct {
 	MultiUser       bool
 	DryRun          bool
 	Environment     EnvironmentMap `json:"-"`
+	logger          *slog.Logger   `json:"-"`
 	UserDescription *string
 }
 
@@ -84,6 +88,8 @@ type UpdateDriver interface {
 	Update() (*[]CommandOutput, error)
 	Config() DriverConfiguration
 	SetEnabled(value bool)
+	Logger() *slog.Logger
+	SetLogger(value *slog.Logger)
 }
 
 type MultiUserUpdateDriver interface {

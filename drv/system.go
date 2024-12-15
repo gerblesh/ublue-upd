@@ -6,6 +6,8 @@ import (
 	"os/exec"
 	"strings"
 	"time"
+
+	"github.com/ublue-os/uupd/pkg/session"
 )
 
 type bootcStatus struct {
@@ -34,6 +36,8 @@ type SystemUpdateDriver interface {
 	Update() (*[]CommandOutput, error)
 	Config() DriverConfiguration
 	SetEnabled(value bool)
+	Logger() *slog.Logger
+	SetLogger(value *slog.Logger)
 }
 
 type SystemUpdater struct {
@@ -64,13 +68,14 @@ func (dr SystemUpdater) Outdated() (bool, error) {
 	return timestamp.Before(oneMonthAgo), nil
 }
 
-func (dr SystemUpdater) Update() (*[]CommandOutput, error) {
+func (up SystemUpdater) Update() (*[]CommandOutput, error) {
 	var finalOutput = []CommandOutput{}
 	var cmd *exec.Cmd
-	binaryPath := dr.BinaryPath
-	cli := []string{binaryPath, "upgrade"}
+	binaryPath := up.BinaryPath
+	cli := []string{binaryPath, "upgrade", "--quiet"}
+	up.config.logger.Debug("Executing update", slog.Any("cli", cli))
 	cmd = exec.Command(cli[0], cli[1:]...)
-	out, err := cmd.CombinedOutput()
+	out, err := session.RunLog(up.config.logger, slog.LevelDebug, cmd)
 	tmpout := CommandOutput{}.New(out, err)
 	if err != nil {
 		tmpout.SetFailureContext("System update")
@@ -94,7 +99,7 @@ func (up SystemUpdater) New(config UpdaterInitConfiguration) (SystemUpdater, err
 		DryRun:      config.DryRun,
 		Environment: config.Environment,
 	}
-
+	up.config.logger = config.Logger.With(slog.String("module", strings.ToLower(up.config.Title)))
 	if up.config.DryRun {
 		return up, nil
 	}
@@ -105,7 +110,6 @@ func (up SystemUpdater) New(config UpdaterInitConfiguration) (SystemUpdater, err
 	} else {
 		up.BinaryPath = bootcBinaryPath
 	}
-	slog.Debug("Reported bootc binary path", slog.String("binary", up.BinaryPath))
 
 	return up, nil
 }
@@ -121,7 +125,7 @@ func (up SystemUpdater) Check() (bool, error) {
 		return true, err
 	}
 	updateNecessary := !strings.Contains(string(out), "No changes in:")
-	slog.Debug("Executed bootc update check", slog.String("output", string(out)), slog.Bool("necessary_update", updateNecessary))
+	up.config.logger.Debug("Executed update check", slog.String("output", string(out)), slog.Bool("update", updateNecessary))
 	return updateNecessary, nil
 }
 
@@ -131,4 +135,12 @@ func (up SystemUpdater) Config() DriverConfiguration {
 
 func (up SystemUpdater) SetEnabled(value bool) {
 	up.config.Enabled = value
+}
+
+func (up SystemUpdater) Logger() *slog.Logger {
+	return up.config.logger
+}
+
+func (up SystemUpdater) SetLogger(logger *slog.Logger) {
+	up.config.logger = logger
 }

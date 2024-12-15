@@ -76,7 +76,6 @@ func Update(cmd *cobra.Command, args []string) {
 	distroboxUpdater.SetUsers(users)
 
 	var enableUpd bool = true
-	var systemOutdated bool
 
 	rpmOstreeUpdater, err := drv.RpmOstreeUpdater{}.New(*initConfiguration)
 	if err != nil {
@@ -147,7 +146,7 @@ func Update(cmd *cobra.Command, args []string) {
 
 	var outputs = []drv.CommandOutput{}
 
-	systemOutdated, err = mainSystemDriver.Outdated()
+	systemOutdated, err := mainSystemDriver.Outdated()
 
 	if err != nil {
 		slog.Error("Failed checking if system is out of date")
@@ -166,7 +165,7 @@ func Update(cmd *cobra.Command, args []string) {
 
 	for _, updater := range updaters {
 		drvConfig := updater.Config()
-		slog.Debug(fmt.Sprintf("%s module", drvConfig.Title), slog.Any("configuration", drvConfig))
+		slog.Debug(fmt.Sprintf("%s module", drvConfig.Title), slog.String("module_name", drvConfig.Title), slog.Any("module_configuration", drvConfig))
 		if !drvConfig.Enabled {
 			continue
 		}
@@ -187,7 +186,7 @@ func Update(cmd *cobra.Command, args []string) {
 		slog.Info("Verbose run requested")
 
 		for _, output := range outputs {
-			slog.Info(output.Context, slog.String("stdout", output.Stdout), slog.Any("stderr", output.Stderr), slog.Any("cli", output.Cli))
+			slog.Info(output.Context, slog.Any("output", output))
 		}
 
 		return
@@ -204,7 +203,7 @@ func Update(cmd *cobra.Command, args []string) {
 		slog.Warn("Exited with failed updates.")
 
 		for _, output := range failures {
-			slog.Info(output.Context, slog.String("stdout", output.Stdout), slog.Any("stderr", output.Stderr), slog.Any("cli", output.Cli))
+			slog.Info(output.Context, slog.Any("output", output))
 		}
 
 		return

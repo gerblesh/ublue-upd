@@ -1,7 +1,9 @@
 package drv
 
 import (
+	"log/slog"
 	"os/exec"
+	"strings"
 
 	"github.com/ublue-os/uupd/pkg/percent"
 	"github.com/ublue-os/uupd/pkg/session"
@@ -37,6 +39,7 @@ func (up FlatpakUpdater) New(config UpdaterInitConfiguration) (FlatpakUpdater, e
 		DryRun:          config.DryRun,
 		Environment:     config.Environment,
 	}
+	up.config.logger = config.Logger.With(slog.String("module", strings.ToLower(up.config.Title)))
 	up.usersEnabled = false
 	up.Tracker = nil
 
@@ -75,9 +78,9 @@ func (up FlatpakUpdater) Update() (*[]CommandOutput, error) {
 	}
 
 	percent.ChangeTrackerMessageFancy(*up.Tracker.Writer, up.Tracker.Tracker, up.Tracker.Progress, percent.TrackerMessage{Title: up.config.Title, Description: up.config.Description})
-	cli := []string{up.binaryPath, "update", "-y"}
+	cli := []string{up.binaryPath, "update", "-y", "--noninteractive"}
 	flatpakCmd := exec.Command(cli[0], cli[1:]...)
-	out, err := flatpakCmd.CombinedOutput()
+	out, err := session.RunLog(up.config.logger, slog.LevelDebug, flatpakCmd)
 	tmpout := CommandOutput{}.New(out, err)
 	tmpout.Context = up.config.Description
 	tmpout.Cli = cli
@@ -90,7 +93,7 @@ func (up FlatpakUpdater) Update() (*[]CommandOutput, error) {
 		context := *up.config.UserDescription + " " + user.Name
 		percent.ChangeTrackerMessageFancy(*up.Tracker.Writer, up.Tracker.Tracker, up.Tracker.Progress, percent.TrackerMessage{Title: up.config.Title, Description: context})
 		cli := []string{up.binaryPath, "update", "-y"}
-		out, err := session.RunUID(user.UID, cli, nil)
+		out, err := session.RunUID(up.config.logger, slog.LevelDebug, user.UID, cli, nil)
 		tmpout = CommandOutput{}.New(out, err)
 		tmpout.Context = context
 		tmpout.Cli = cli
@@ -106,4 +109,12 @@ func (up FlatpakUpdater) Config() DriverConfiguration {
 
 func (up FlatpakUpdater) SetEnabled(value bool) {
 	up.config.Enabled = value
+}
+
+func (up FlatpakUpdater) Logger() *slog.Logger {
+	return up.config.logger
+}
+
+func (up FlatpakUpdater) SetLogger(logger *slog.Logger) {
+	up.config.logger = logger
 }

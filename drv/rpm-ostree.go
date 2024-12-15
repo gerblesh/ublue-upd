@@ -5,6 +5,8 @@ package drv
 
 import (
 	"encoding/json"
+	"github.com/ublue-os/uupd/pkg/session"
+	"log/slog"
 	"os/exec"
 	"strings"
 	"time"
@@ -29,7 +31,7 @@ func (up RpmOstreeUpdater) Outdated() (bool, error) {
 	var timestamp time.Time
 
 	cmd := exec.Command(up.BinaryPath, "status", "--json", "--booted")
-	out, err := cmd.CombinedOutput()
+	out, err := session.RunLog(up.config.logger, slog.LevelDebug, cmd)
 	if err != nil {
 		return false, err
 	}
@@ -43,15 +45,14 @@ func (up RpmOstreeUpdater) Outdated() (bool, error) {
 	return timestamp.Before(oneMonthAgo), nil
 }
 
-func (dr RpmOstreeUpdater) Update() (*[]CommandOutput, error) {
+func (up RpmOstreeUpdater) Update() (*[]CommandOutput, error) {
 	var finalOutput = []CommandOutput{}
 	var cmd *exec.Cmd
-	binaryPath := dr.BinaryPath
+	binaryPath := up.BinaryPath
 	cli := []string{binaryPath, "upgrade"}
-	cmd = exec.Command(cli[0], cli[1:]...)
-	out, err := cmd.CombinedOutput()
+	out, err := session.RunLog(up.config.logger, slog.LevelDebug, cmd)
 	tmpout := CommandOutput{}.New(out, err)
-	// tmpout.Cli = cli
+	tmpout.Cli = cli
 	tmpout.Failure = err != nil
 	tmpout.Context = "System Update"
 	finalOutput = append(finalOutput, *tmpout)
@@ -87,7 +88,7 @@ func (up RpmOstreeUpdater) New(config UpdaterInitConfiguration) (RpmOstreeUpdate
 		DryRun:      config.DryRun,
 		Environment: config.Environment,
 	}
-
+	up.config.logger = config.Logger.With(slog.String("module", strings.ToLower(up.config.Title)))
 	if up.config.DryRun {
 		return up, nil
 	}
@@ -114,7 +115,10 @@ func (up RpmOstreeUpdater) Check() (bool, error) {
 	if err != nil {
 		return true, err
 	}
-	return strings.Contains(string(out), "AvailableUpdate"), nil
+
+	updateNecessary := strings.Contains(string(out), "AvailableUpdate")
+	up.config.logger.Debug("Executed update check", slog.String("output", string(out)), slog.Bool("update", updateNecessary))
+	return updateNecessary, nil
 }
 
 func (up RpmOstreeUpdater) Config() DriverConfiguration {
@@ -123,4 +127,12 @@ func (up RpmOstreeUpdater) Config() DriverConfiguration {
 
 func (up RpmOstreeUpdater) SetEnabled(value bool) {
 	up.config.Enabled = value
+}
+
+func (up RpmOstreeUpdater) Logger() *slog.Logger {
+	return up.config.logger
+}
+
+func (up RpmOstreeUpdater) SetLogger(logger *slog.Logger) {
+	up.config.logger = logger
 }

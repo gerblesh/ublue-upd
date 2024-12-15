@@ -2,7 +2,9 @@ package drv
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
+	"strings"
 	"syscall"
 
 	"github.com/ublue-os/uupd/pkg/session"
@@ -43,7 +45,7 @@ func (up BrewUpdater) Update() (*[]CommandOutput, error) {
 	}
 
 	cli := []string{up.BrewPath, "update"}
-	out, err := session.RunUID(up.BaseUser, cli, up.config.Environment)
+	out, err := session.RunUID(up.config.logger, slog.LevelDebug, up.BaseUser, cli, up.config.Environment)
 	tmpout := CommandOutput{}.New(out, err)
 	tmpout.Context = "Brew Update"
 	tmpout.Cli = cli
@@ -55,7 +57,7 @@ func (up BrewUpdater) Update() (*[]CommandOutput, error) {
 	}
 
 	cli = []string{up.BrewPath, "upgrade"}
-	out, err = session.RunUID(up.BaseUser, cli, up.config.Environment)
+	out, err = session.RunUID(up.config.logger, slog.LevelDebug, up.BaseUser, cli, up.config.Environment)
 	tmpout = CommandOutput{}.New(out, err)
 	tmpout.Context = "Brew Upgrade"
 	tmpout.Cli = cli
@@ -74,7 +76,6 @@ type BrewUpdater struct {
 }
 
 func (up BrewUpdater) New(config UpdaterInitConfiguration) (BrewUpdater, error) {
-
 	up.config = DriverConfiguration{
 		Title:       "Brew",
 		Description: "CLI Apps",
@@ -83,6 +84,7 @@ func (up BrewUpdater) New(config UpdaterInitConfiguration) (BrewUpdater, error) 
 		DryRun:      config.DryRun,
 		Environment: config.Environment,
 	}
+	up.config.logger = config.Logger.With(slog.String("module", strings.ToLower(up.config.Title)))
 
 	brewPrefix, exists := up.config.Environment["HOMEBREW_PREFIX"]
 	if !exists || brewPrefix == "" {
@@ -127,4 +129,12 @@ func (up BrewUpdater) Config() DriverConfiguration {
 }
 func (up BrewUpdater) SetEnabled(value bool) {
 	up.config.Enabled = value
+}
+
+func (up BrewUpdater) Logger() *slog.Logger {
+	return up.config.logger
+}
+
+func (up BrewUpdater) SetLogger(logger *slog.Logger) {
+	up.config.logger = logger
 }

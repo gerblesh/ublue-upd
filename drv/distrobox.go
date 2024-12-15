@@ -1,6 +1,9 @@
 package drv
 
 import (
+	"log/slog"
+	"strings"
+
 	"github.com/ublue-os/uupd/pkg/percent"
 	"github.com/ublue-os/uupd/pkg/session"
 )
@@ -35,6 +38,7 @@ func (up DistroboxUpdater) New(config UpdaterInitConfiguration) (DistroboxUpdate
 		DryRun:          config.DryRun,
 		Environment:     config.Environment,
 	}
+	up.config.logger = config.Logger.With(slog.String("module", strings.ToLower(up.config.Title)))
 	up.usersEnabled = false
 	up.Tracker = nil
 
@@ -74,7 +78,7 @@ func (up DistroboxUpdater) Update() (*[]CommandOutput, error) {
 
 	percent.ChangeTrackerMessageFancy(*up.Tracker.Writer, up.Tracker.Tracker, up.Tracker.Progress, percent.TrackerMessage{Title: up.config.Title, Description: up.config.Description})
 	cli := []string{up.binaryPath, "upgrade", "-a"}
-	out, err := session.RunUID(0, cli, nil)
+	out, err := session.RunUID(up.config.logger, slog.LevelDebug, 0, cli, nil)
 	tmpout := CommandOutput{}.New(out, err)
 	tmpout.Context = up.config.Description
 	tmpout.Cli = cli
@@ -87,7 +91,7 @@ func (up DistroboxUpdater) Update() (*[]CommandOutput, error) {
 		context := *up.config.UserDescription + " " + user.Name
 		percent.ChangeTrackerMessageFancy(*up.Tracker.Writer, up.Tracker.Tracker, up.Tracker.Progress, percent.TrackerMessage{Title: up.config.Title, Description: *up.config.UserDescription + " " + user.Name})
 		cli := []string{up.binaryPath, "upgrade", "-a"}
-		out, err := session.RunUID(user.UID, cli, nil)
+		out, err := session.RunUID(up.config.logger, slog.LevelDebug, user.UID, cli, nil)
 		tmpout = CommandOutput{}.New(out, err)
 		tmpout.Context = context
 		tmpout.Cli = cli
@@ -103,4 +107,12 @@ func (up DistroboxUpdater) Config() DriverConfiguration {
 
 func (up DistroboxUpdater) SetEnabled(value bool) {
 	up.config.Enabled = value
+}
+
+func (up DistroboxUpdater) Logger() *slog.Logger {
+	return up.config.logger
+}
+
+func (up DistroboxUpdater) SetLogger(logger *slog.Logger) {
+	up.config.logger = logger
 }

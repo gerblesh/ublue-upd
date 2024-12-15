@@ -70,7 +70,7 @@ func NewProgressWriter() progress.Writer {
 		var accentColorSet progress.StyleColors
 		// Get accent color: https://flatpak.github.io/xdg-desktop-portal/docs/doc-org.freedesktop.portal.Settings.html
 		cli := []string{"busctl", "--user", "--json=short", "call", "org.freedesktop.portal.Desktop", "/org/freedesktop/portal/desktop", "org.freedesktop.portal.Settings", "ReadOne", "ss", "org.freedesktop.appearance", "accent-color"}
-		out, err := session.RunUID(targetUser, cli, nil)
+		out, err := session.RunUID(nil, slog.LevelDebug, targetUser, cli, nil)
 		if err != nil {
 			return pw
 		}
