@@ -8,12 +8,41 @@ import (
 )
 
 func UpdateCheck(cmd *cobra.Command, args []string) {
-	systemUpdater, err := drv.SystemUpdater{}.New(drv.UpdaterInitConfiguration{})
+	var enableUpd bool = true
+
+	initConfiguration := drv.UpdaterInitConfiguration{}.New()
+	rpmOstreeUpdater, err := drv.RpmOstreeUpdater{}.New(*initConfiguration)
 	if err != nil {
-		slog.Error("Failed getting system driver", slog.Any("error", err))
-		return
+		enableUpd = false
 	}
-	updateAvailable, err := systemUpdater.Check()
+
+	systemUpdater, err := drv.SystemUpdater{}.New(*initConfiguration)
+	if err != nil {
+		enableUpd = false
+	}
+
+	isBootc, err := drv.BootcCompatible(systemUpdater.BinaryPath)
+	if err != nil {
+		isBootc = false
+	}
+
+	if !isBootc {
+		slog.Debug("Using rpm-ostree fallback as system driver")
+	}
+
+	systemUpdater.Config.Enabled = isBootc && enableUpd
+	rpmOstreeUpdater.Config.Enabled = !isBootc && enableUpd
+
+	var mainSystemDriver drv.SystemUpdateDriver
+	if !isBootc {
+		slog.Debug("Using the rpm-ostree driver")
+		mainSystemDriver = &rpmOstreeUpdater
+	} else {
+		slog.Debug("Using the bootc driver")
+		mainSystemDriver = &systemUpdater
+	}
+
+	updateAvailable, err := mainSystemDriver.Check()
 	if err != nil {
 		slog.Error("Failed checking for updates", slog.Any("error", err))
 		return
