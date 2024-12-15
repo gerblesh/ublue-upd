@@ -76,3 +76,11 @@ lint:
 
 release:
 	goreleaser
+
+test:
+	go test -v -cover ./...
+
+test-interactive:
+	#!/usr/bin/env bash
+	t="/tmp/go-cover.$$.tmp"
+	go test -v -coverprofile=$t ./... $@ && go tool cover -html=$t && unlink $t

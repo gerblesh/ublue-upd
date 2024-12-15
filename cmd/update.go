@@ -15,17 +15,21 @@ import (
 )
 
 func Update(cmd *cobra.Command, args []string) {
-	lock, err := filelock.AcquireLock()
+	lockfile, err := filelock.OpenLockfile(filelock.GetDefaultLockfile())
 	if err != nil {
+		slog.Error("Failed creating and opening lockfile. Is uupd already running?", slog.Any("error", err))
+		return
+	}
+	defer func(lockfile *os.File) {
+		err := filelock.ReleaseLock(lockfile)
+		if err != nil {
+			slog.Error("Failed releasing lock", slog.Any("error", err))
+		}
+	}(lockfile)
+	if err := filelock.AcquireLock(lockfile, filelock.TimeoutConfig{Tries: 5}); err != nil {
 		slog.Error(fmt.Sprintf("%v, is uupd already running?", err))
 		return
 	}
-	defer func() {
-		err := filelock.ReleaseLock(lock)
-		if err != nil {
-			slog.Error("Failed releasing lock")
-		}
-	}()
 
 	hwCheck, err := cmd.Flags().GetBool("hw-check")
 	if err != nil {

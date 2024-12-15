@@ -1,20 +1,14 @@
 package filelock
 
 import (
-	"fmt"
-	"io"
+	"errors"
 	"os"
 	"syscall"
 	"time"
 )
 
-const fileLockPath string = "/run/uupd.lock"
-
 func IsFileLocked(file *os.File) bool {
-	lock := syscall.Flock_t{
-		Type:   syscall.F_WRLCK,
-		Whence: io.SeekStart,
-	}
+	lock := syscall.Flock_t{}
 	err := syscall.FcntlFlock(file.Fd(), syscall.F_GETLK, &lock)
 	if err != nil {
 		return false
@@ -22,34 +16,47 @@ func IsFileLocked(file *os.File) bool {
 	return lock.Type != syscall.F_UNLCK
 }
 
-func AcquireLock() (*os.File, error) {
-	file, err := os.OpenFile(fileLockPath, os.O_RDONLY|os.O_CREATE|os.O_TRUNC, 0600)
+func GetDefaultLockfile() string {
+	return "/run/uupd.lock"
+}
+
+func OpenLockfile(filepath string) (*os.File, error) {
+	file, err := os.OpenFile(filepath, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0666)
 	if err != nil {
 		return nil, err
 	}
+	return file, err
+}
 
-	timeout := 5.0
-	startTime := time.Now()
-	var lockFile *os.File
+type TimeoutConfig struct {
+	Tries int
+}
 
-	for time.Since(startTime).Seconds() < timeout {
-		err = syscall.Flock(int(file.Fd()), syscall.LOCK_EX|syscall.LOCK_NB)
-		if err == nil {
-			lockFile = file
+func AcquireLock(file *os.File, timeout TimeoutConfig) error {
+	maxTries := timeout.Tries
+	tries := 0
+	fileLocked := false
+
+	for tries < maxTries {
+		err := syscall.Flock(int(file.Fd()), syscall.LOCK_EX|syscall.LOCK_NB)
+		if fileLocked = err == nil; fileLocked {
 			break
 		}
 
+		tries += 1
 		time.Sleep(1 * time.Second)
 	}
 
-	if lockFile == nil {
-		file.Close()
-		return nil, fmt.Errorf("Could not acquire lock at %s", fileLockPath)
+	if !fileLocked {
+		return errors.New("Could not acquire lock to file")
 	}
 
-	return lockFile, nil
+	return nil
 }
 
 func ReleaseLock(file *os.File) error {
+	if err := syscall.Flock(int(file.Fd()), syscall.LOCK_UN); err != nil {
+		return err
+	}
 	return syscall.Close(int(file.Fd()))
 }

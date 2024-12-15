@@ -60,11 +60,6 @@ func (output CommandOutput) New(out []byte, err error) *CommandOutput {
 	}
 }
 
-func (out *CommandOutput) SetFailureContext(context string) {
-	out.Failure = true
-	out.Context = context
-}
-
 type DriverConfiguration struct {
 	Title           string
 	Description     string
