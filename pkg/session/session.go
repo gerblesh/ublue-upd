@@ -2,6 +2,7 @@ package session
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"io"
 	"log/slog"
@@ -26,13 +27,17 @@ func RunLog(logger *slog.Logger, level slog.Level, command *exec.Cmd) ([]byte, e
 	stderr, _ := command.StderrPipe()
 	multiReader := io.MultiReader(stdout, stderr)
 
-	command.Start()
+	if err := command.Wait(); err != nil {
+		logger.Warn("Error occoured starting external command", slog.Any("error", err))
+	}
 	scanner := bufio.NewScanner(multiReader)
 	scanner.Split(bufio.ScanLines)
 	for scanner.Scan() {
-		logger.With(slog.Bool("subcommand", true)).Log(nil, level, scanner.Text())
+		logger.With(slog.Bool("subcommand", true)).Log(context.TODO(), level, scanner.Text())
 	}
-	command.Wait()
+	if err := command.Wait(); err != nil {
+		logger.Warn("Error occoured while waiting for external command", slog.Any("error", err))
+	}
 
 	return scanner.Bytes(), scanner.Err()
 }

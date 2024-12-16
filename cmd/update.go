@@ -84,7 +84,7 @@ func Update(cmd *cobra.Command, args []string) {
 	distroboxUpdater.Config.Enabled = err == nil
 	distroboxUpdater.SetUsers(users)
 
-	mainSystemDriver, mainSystemDriverConfig, _, err := system.InitializeSystemDriver(*initConfiguration)
+	mainSystemDriver, mainSystemDriverConfig, _, _ := system.InitializeSystemDriver(*initConfiguration)
 
 	enableUpd, err := mainSystemDriver.Check()
 	if err != nil {
