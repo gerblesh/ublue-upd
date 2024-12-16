@@ -66,6 +66,7 @@ var (
 	fLogFile   string
 	fLogLevel  string
 	fNoLogging bool
+	fLogJson   bool
 )
 
 func Execute() {
@@ -93,7 +94,7 @@ func initLogging(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	main_app_logger := slog.New(appLogging.SetupAppLogger(logWriter, logLevel, fLogFile != "-"))
+	main_app_logger := slog.New(appLogging.SetupAppLogger(logWriter, logLevel, fLogFile != "-" || fLogJson))
 
 	if fNoLogging {
 		slog.SetDefault(appLogging.NewMuteLogger())
@@ -113,6 +114,7 @@ func init() {
 	rootCmd.Flags().BoolP("verbose", "v", false, "Display command outputs after run")
 	rootCmd.Flags().Bool("ci", false, "Makes some modifications to behavior if is running in CI")
 
+	rootCmd.PersistentFlags().BoolVar(&fLogJson, "json", false, "Print logs as json (used for testing)")
 	rootCmd.PersistentFlags().StringVar(&fLogFile, "log-file", "-", "File where user-facing logs will be written to")
 	rootCmd.PersistentFlags().StringVar(&fLogLevel, "log-level", "info", "Log level for user-facing logs")
 	rootCmd.PersistentFlags().BoolVar(&fNoLogging, "quiet", false, "Make logs quiet")

@@ -14,16 +14,6 @@ import (
 	"github.com/ublue-os/uupd/pkg/session"
 )
 
-type Incrementer struct {
-	doneIncrements int
-	MaxIncrements  int
-}
-
-type IncrementTracker struct {
-	Tracker     *progress.Tracker
-	incrementer *Incrementer
-}
-
 var CuteColors = progress.StyleColors{
 	Message: text.Colors{text.FgWhite},
 	Error:   text.Colors{text.FgRed},
@@ -70,7 +60,7 @@ func NewProgressWriter() progress.Writer {
 		var accentColorSet progress.StyleColors
 		// Get accent color: https://flatpak.github.io/xdg-desktop-portal/docs/doc-org.freedesktop.portal.Settings.html
 		cli := []string{"busctl", "--user", "--json=short", "call", "org.freedesktop.portal.Desktop", "/org/freedesktop/portal/desktop", "org.freedesktop.portal.Settings", "ReadOne", "ss", "org.freedesktop.appearance", "accent-color"}
-		out, err := session.RunUID(targetUser, cli, nil)
+		out, err := session.RunUID(nil, slog.LevelDebug, targetUser, cli, nil)
 		if err != nil {
 			return pw
 		}
@@ -100,7 +90,7 @@ func NewProgressWriter() progress.Writer {
 func NewIncrementTracker(tracker *progress.Tracker, max_increments int) *IncrementTracker {
 	return &IncrementTracker{
 		Tracker:     tracker,
-		incrementer: &Incrementer{MaxIncrements: max_increments},
+		Incrementer: &Incrementer{MaxIncrements: max_increments},
 	}
 }
 
@@ -124,25 +114,6 @@ func ChangeTrackerMessageFancy(writer progress.Writer, tracker *IncrementTracker
 	finalMessage := fmt.Sprintf("Updating %s (%s)", message.Description, message.Title)
 	writer.SetMessageLength(len(finalMessage))
 	tracker.Tracker.UpdateMessage(finalMessage)
-}
-
-func (it *IncrementTracker) IncrementSection(err error) {
-	var increment_step float64
-	if it.incrementer.doneIncrements == 0 {
-		increment_step = 1
-	} else {
-		increment_step = float64(it.Tracker.Total / int64(it.incrementer.MaxIncrements))
-	}
-	if err == nil {
-		it.Tracker.Increment(int64(increment_step))
-	} else {
-		it.Tracker.IncrementWithError(int64(increment_step))
-	}
-	it.incrementer.doneIncrements++
-}
-
-func (it *IncrementTracker) CurrentStep() int {
-	return it.incrementer.doneIncrements
 }
 
 func ResetOscProgress() {

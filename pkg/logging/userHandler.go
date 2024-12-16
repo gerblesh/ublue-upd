@@ -96,12 +96,7 @@ func (h *UserHandler) Handle(ctx context.Context, r slog.Record) error {
 		colorize(lightGray, r.Time.Format(timeFormat)),
 		level,
 		colorize(white, r.Message),
-		func() string {
-			if len(trimmedBytes) > 0 && trimmedBytes != "{}" {
-				return colorize(darkGray, "\n"+trimmedBytes)
-			}
-			return ""
-		}(),
+		colorize(darkGray, "\n"+trimmedBytes),
 	)
 
 	return nil
