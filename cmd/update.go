@@ -8,7 +8,12 @@ import (
 	"github.com/jedib0t/go-pretty/v6/progress"
 	"github.com/spf13/cobra"
 	"github.com/ublue-os/uupd/checks"
-	"github.com/ublue-os/uupd/drv"
+	"github.com/ublue-os/uupd/drv/brew"
+	"github.com/ublue-os/uupd/drv/distrobox"
+	"github.com/ublue-os/uupd/drv/flatpak"
+	drv "github.com/ublue-os/uupd/drv/generic"
+	"github.com/ublue-os/uupd/drv/system"
+
 	"github.com/ublue-os/uupd/pkg/filelock"
 	"github.com/ublue-os/uupd/pkg/percent"
 	"github.com/ublue-os/uupd/pkg/session"
@@ -68,56 +73,29 @@ func Update(cmd *cobra.Command, args []string) {
 	initConfiguration.DryRun = dryRun
 	initConfiguration.Verbose = verboseRun
 
-	brewUpdater, err := drv.BrewUpdater{}.New(*initConfiguration)
+	brewUpdater, err := brew.BrewUpdater{}.New(*initConfiguration)
 	brewUpdater.Config.Enabled = err == nil
 
-	flatpakUpdater, err := drv.FlatpakUpdater{}.New(*initConfiguration)
+	flatpakUpdater, err := flatpak.FlatpakUpdater{}.New(*initConfiguration)
 	flatpakUpdater.Config.Enabled = err == nil
 	flatpakUpdater.SetUsers(users)
 
-	distroboxUpdater, err := drv.DistroboxUpdater{}.New(*initConfiguration)
+	distroboxUpdater, err := distrobox.DistroboxUpdater{}.New(*initConfiguration)
 	distroboxUpdater.Config.Enabled = err == nil
 	distroboxUpdater.SetUsers(users)
 
-	var enableUpd bool = true
+	mainSystemDriver, mainSystemDriverConfig, _, err := system.InitializeSystemDriver(*initConfiguration)
 
-	rpmOstreeUpdater, err := drv.RpmOstreeUpdater{}.New(*initConfiguration)
-	if err != nil {
-		enableUpd = false
-	}
-
-	systemUpdater, err := drv.SystemUpdater{}.New(*initConfiguration)
-	if err != nil {
-		enableUpd = false
-	}
-
-	isBootc, err := drv.BootcCompatible(systemUpdater.BinaryPath)
-	if err != nil {
-		isBootc = false
-	}
-
-	if !isBootc {
-		slog.Debug("Using rpm-ostree fallback as system driver")
-	}
-
-	systemUpdater.Config.Enabled = isBootc && enableUpd
-	rpmOstreeUpdater.Config.Enabled = !isBootc && enableUpd
-
-	// The system driver to be applied needs to have the correct "enabled" value since it will NOT update from here onwards.
-	var mainSystemDriver drv.SystemUpdateDriver = &systemUpdater
-	if !isBootc {
-		mainSystemDriver = &rpmOstreeUpdater
-	}
-
-	enableUpd, err = mainSystemDriver.Check()
+	enableUpd, err := mainSystemDriver.Check()
 	if err != nil {
 		slog.Error("Failed checking for updates")
 	}
+	mainSystemDriverConfig.Enabled = mainSystemDriverConfig.Enabled && enableUpd
 
-	slog.Debug("System Updater module status", slog.Bool("enabled", enableUpd))
+	slog.Debug("System Updater module status", slog.Bool("enabled", mainSystemDriverConfig.Enabled))
 
 	totalSteps := brewUpdater.Steps() + flatpakUpdater.Steps() + distroboxUpdater.Steps()
-	if enableUpd {
+	if mainSystemDriverConfig.Enabled {
 		totalSteps += mainSystemDriver.Steps()
 	}
 	pw := percent.NewProgressWriter()
@@ -169,9 +147,9 @@ func Update(cmd *cobra.Command, args []string) {
 	// This section is ugly but we cant really do much about it.
 	// Using interfaces doesn't preserve the "Config" struct state and I dont know any other way to make this work without cursed workarounds.
 
-	if enableUpd {
-		slog.Debug(fmt.Sprintf("%s module", systemUpdater.Config.Title), slog.String("module_name", systemUpdater.Config.Title), slog.Any("module_configuration", systemUpdater.Config))
-		percent.ChangeTrackerMessageFancy(pw, tracker, progressEnabled, percent.TrackerMessage{Title: systemUpdater.Config.Title, Description: systemUpdater.Config.Description})
+	if mainSystemDriverConfig.Enabled {
+		slog.Debug(fmt.Sprintf("%s module", mainSystemDriverConfig.Title), slog.String("module_name", mainSystemDriverConfig.Title), slog.Any("module_configuration", mainSystemDriverConfig))
+		percent.ChangeTrackerMessageFancy(pw, tracker, progressEnabled, percent.TrackerMessage{Title: mainSystemDriverConfig.Title, Description: mainSystemDriverConfig.Description})
 		var out *[]drv.CommandOutput
 		out, err = mainSystemDriver.Update()
 		outputs = append(outputs, *out...)

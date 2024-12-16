@@ -4,42 +4,20 @@ import (
 	"log/slog"
 
 	"github.com/spf13/cobra"
-	"github.com/ublue-os/uupd/drv"
+	"github.com/ublue-os/uupd/drv/generic"
+	"github.com/ublue-os/uupd/drv/system"
 )
 
 func UpdateCheck(cmd *cobra.Command, args []string) {
-	var enableUpd bool = true
+	initConfiguration := generic.UpdaterInitConfiguration{}.New()
+	initConfiguration.Ci = false
+	initConfiguration.DryRun = false
+	initConfiguration.Verbose = false
 
-	initConfiguration := drv.UpdaterInitConfiguration{}.New()
-	rpmOstreeUpdater, err := drv.RpmOstreeUpdater{}.New(*initConfiguration)
+	mainSystemDriver, _, _, err := system.InitializeSystemDriver(*initConfiguration)
 	if err != nil {
-		enableUpd = false
-	}
-
-	systemUpdater, err := drv.SystemUpdater{}.New(*initConfiguration)
-	if err != nil {
-		enableUpd = false
-	}
-
-	isBootc, err := drv.BootcCompatible(systemUpdater.BinaryPath)
-	if err != nil {
-		isBootc = false
-	}
-
-	if !isBootc {
-		slog.Debug("Using rpm-ostree fallback as system driver")
-	}
-
-	systemUpdater.Config.Enabled = isBootc && enableUpd
-	rpmOstreeUpdater.Config.Enabled = !isBootc && enableUpd
-
-	var mainSystemDriver drv.SystemUpdateDriver
-	if !isBootc {
-		slog.Debug("Using the rpm-ostree driver")
-		mainSystemDriver = &rpmOstreeUpdater
-	} else {
-		slog.Debug("Using the bootc driver")
-		mainSystemDriver = &systemUpdater
+		slog.Error("Failed")
+		return
 	}
 
 	updateAvailable, err := mainSystemDriver.Check()

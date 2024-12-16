@@ -4,15 +4,27 @@ import (
 	"log/slog"
 
 	"github.com/spf13/cobra"
-	"github.com/ublue-os/uupd/drv"
+	"github.com/ublue-os/uupd/drv/generic"
+	"github.com/ublue-os/uupd/drv/system"
 )
 
 func ImageOutdated(cmd *cobra.Command, args []string) {
-	systemUpdater, err := drv.SystemUpdater{}.New(drv.UpdaterInitConfiguration{})
+	initConfiguration := generic.UpdaterInitConfiguration{}.New()
+	initConfiguration.Ci = false
+	initConfiguration.DryRun = false
+	initConfiguration.Verbose = false
+
+	mainSystemDriver, _, _, err := system.InitializeSystemDriver(*initConfiguration)
 	if err != nil {
-		slog.Error("Failed getting system driver", slog.Any("error", err))
+		slog.Error("Failed")
 		return
 	}
 
-	println(systemUpdater.Outdated)
+	systemOutdated, err := mainSystemDriver.Outdated()
+
+	if err != nil {
+		slog.Error("Failed checking if system is out of date")
+	}
+
+	println(systemOutdated)
 }

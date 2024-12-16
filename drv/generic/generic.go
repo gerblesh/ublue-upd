@@ -1,4 +1,4 @@
-package drv
+package generic
 
 import (
 	"log/slog"
@@ -18,6 +18,14 @@ type UpdaterInitConfiguration struct {
 	Verbose     bool
 	Environment EnvironmentMap
 	Logger      *slog.Logger
+}
+
+func EnvOrFallback(environment EnvironmentMap, key string, fallback string) string {
+	validCase, exists := environment[key]
+	if exists && validCase != "" {
+		return validCase
+	}
+	return fallback
 }
 
 func GetEnvironment(data []string, getkeyval func(item string) (key, val string)) map[string]string {
@@ -67,7 +75,7 @@ type DriverConfiguration struct {
 	MultiUser       bool
 	DryRun          bool
 	Environment     EnvironmentMap `json:"-"`
-	logger          *slog.Logger   `json:"-"`
+	Logger          *slog.Logger   `json:"-"`
 	UserDescription *string
 }
 

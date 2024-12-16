@@ -1,13 +1,14 @@
-package drv_test
+package system_test
 
 import (
 	"testing"
 
 	"github.com/ublue-os/uupd/drv"
+	"github.com/ublue-os/uupd/drv/system"
 	appLogging "github.com/ublue-os/uupd/pkg/logging"
 )
 
-func InitBaseConfig() drv.SystemUpdater {
+func InitBaseConfig() system.SystemUpdater {
 	var initConfiguration = drv.UpdaterInitConfiguration{
 		DryRun:      false,
 		Ci:          false,
@@ -30,17 +31,5 @@ func TestProperSteps(t *testing.T) {
 	systemUpdater.Config.Enabled = true
 	if systemUpdater.Steps() == 0 {
 		t.Fatalf("Expected steps to be added")
-	}
-}
-
-func TestFallBack(t *testing.T) {
-	var environment drv.EnvironmentMap = drv.EnvironmentMap{
-		"TEST_FALLBACK_GOOD": "true",
-	}
-	if value := drv.EnvOrFallback(environment, "TEST_FALLBACK_GOOD", "FALSE"); value != "true" {
-		t.Fatalf("Getting the proper value fails, %s", value)
-	}
-	if value := drv.EnvOrFallback(environment, "TEST_FALLBACK_BAD", "FALSE"); value != "FALSE" {
-		t.Fatalf("Getting the fallback fails, %s", value)
 	}
 }

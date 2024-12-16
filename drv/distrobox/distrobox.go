@@ -1,15 +1,15 @@
-package drv
+package distrobox
 
 import (
 	"log/slog"
-	"os/exec"
 	"strings"
 
+	. "github.com/ublue-os/uupd/drv/generic"
 	"github.com/ublue-os/uupd/pkg/percent"
 	"github.com/ublue-os/uupd/pkg/session"
 )
 
-type FlatpakUpdater struct {
+type DistroboxUpdater struct {
 	Config       DriverConfiguration
 	Tracker      *TrackerConfiguration
 	binaryPath   string
@@ -17,7 +17,7 @@ type FlatpakUpdater struct {
 	usersEnabled bool
 }
 
-func (up FlatpakUpdater) Steps() int {
+func (up DistroboxUpdater) Steps() int {
 	if up.Config.Enabled {
 		var steps = 1
 		if up.usersEnabled {
@@ -28,24 +28,24 @@ func (up FlatpakUpdater) Steps() int {
 	return 0
 }
 
-func (up FlatpakUpdater) New(config UpdaterInitConfiguration) (FlatpakUpdater, error) {
-	userdesc := "Apps for User:"
+func (up DistroboxUpdater) New(config UpdaterInitConfiguration) (DistroboxUpdater, error) {
+	userdesc := "Distroboxes for User:"
 	up.Config = DriverConfiguration{
-		Title:           "Flatpak",
-		Description:     "System Apps",
+		Title:           "Distrobox",
+		Description:     "Rootful Distroboxes",
 		UserDescription: &userdesc,
 		Enabled:         true,
 		MultiUser:       true,
 		DryRun:          config.DryRun,
 		Environment:     config.Environment,
 	}
-	up.Config.logger = config.Logger.With(slog.String("module", strings.ToLower(up.Config.Title)))
+	up.Config.Logger = config.Logger.With(slog.String("module", strings.ToLower(up.Config.Title)))
 	up.usersEnabled = false
 	up.Tracker = nil
 
-	binaryPath, exists := up.Config.Environment["UUPD_FLATPAK_BINARY"]
+	binaryPath, exists := up.Config.Environment["UUPD_DISTROBOX_BINARY"]
 	if !exists || binaryPath == "" {
-		up.binaryPath = "/usr/bin/flatpak"
+		up.binaryPath = "/usr/bin/distrobox"
 	} else {
 		up.binaryPath = binaryPath
 	}
@@ -53,16 +53,16 @@ func (up FlatpakUpdater) New(config UpdaterInitConfiguration) (FlatpakUpdater, e
 	return up, nil
 }
 
-func (up *FlatpakUpdater) SetUsers(users []session.User) {
+func (up *DistroboxUpdater) SetUsers(users []session.User) {
 	up.users = users
 	up.usersEnabled = true
 }
 
-func (up FlatpakUpdater) Check() (bool, error) {
+func (up DistroboxUpdater) Check() (bool, error) {
 	return true, nil
 }
 
-func (up FlatpakUpdater) Update() (*[]CommandOutput, error) {
+func (up DistroboxUpdater) Update() (*[]CommandOutput, error) {
 	var finalOutput = []CommandOutput{}
 
 	if up.Config.DryRun {
@@ -78,9 +78,8 @@ func (up FlatpakUpdater) Update() (*[]CommandOutput, error) {
 	}
 
 	percent.ChangeTrackerMessageFancy(*up.Tracker.Writer, up.Tracker.Tracker, up.Tracker.Progress, percent.TrackerMessage{Title: up.Config.Title, Description: up.Config.Description})
-	cli := []string{up.binaryPath, "update", "-y", "--noninteractive"}
-	flatpakCmd := exec.Command(cli[0], cli[1:]...)
-	out, err := session.RunLog(up.Config.logger, slog.LevelDebug, flatpakCmd)
+	cli := []string{up.binaryPath, "upgrade", "-a"}
+	out, err := session.RunUID(up.Config.Logger, slog.LevelDebug, 0, cli, nil)
 	tmpout := CommandOutput{}.New(out, err)
 	tmpout.Context = up.Config.Description
 	tmpout.Cli = cli
@@ -91,9 +90,9 @@ func (up FlatpakUpdater) Update() (*[]CommandOutput, error) {
 	for _, user := range up.users {
 		up.Tracker.Tracker.IncrementSection(err)
 		context := *up.Config.UserDescription + " " + user.Name
-		percent.ChangeTrackerMessageFancy(*up.Tracker.Writer, up.Tracker.Tracker, up.Tracker.Progress, percent.TrackerMessage{Title: up.Config.Title, Description: context})
-		cli := []string{up.binaryPath, "update", "-y"}
-		out, err := session.RunUID(up.Config.logger, slog.LevelDebug, user.UID, cli, nil)
+		percent.ChangeTrackerMessageFancy(*up.Tracker.Writer, up.Tracker.Tracker, up.Tracker.Progress, percent.TrackerMessage{Title: up.Config.Title, Description: *up.Config.UserDescription + " " + user.Name})
+		cli := []string{up.binaryPath, "upgrade", "-a"}
+		out, err := session.RunUID(up.Config.Logger, slog.LevelDebug, user.UID, cli, nil)
 		tmpout = CommandOutput{}.New(out, err)
 		tmpout.Context = context
 		tmpout.Cli = cli
@@ -101,12 +100,4 @@ func (up FlatpakUpdater) Update() (*[]CommandOutput, error) {
 		finalOutput = append(finalOutput, *tmpout)
 	}
 	return &finalOutput, nil
-}
-
-func (up *FlatpakUpdater) Logger() *slog.Logger {
-	return up.Config.logger
-}
-
-func (up *FlatpakUpdater) SetLogger(logger *slog.Logger) {
-	up.Config.logger = logger
 }
