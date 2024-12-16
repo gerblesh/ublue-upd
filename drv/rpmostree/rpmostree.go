@@ -25,11 +25,15 @@ type RpmOstreeUpdater struct {
 	BinaryPath string
 }
 
+// Checks if it is at least a month old considering how that works
+func IsOutdatedOneMonthTimestamp(current time.Time, target time.Time) bool {
+	return target.Before(current.AddDate(0, -1, 0))
+}
+
 func (up RpmOstreeUpdater) Outdated() (bool, error) {
 	if up.Config.DryRun {
 		return false, nil
 	}
-	oneMonthAgo := time.Now().AddDate(0, -1, 0)
 	var timestamp time.Time
 
 	cmd := exec.Command(up.BinaryPath, "status", "--json", "--booted")
@@ -44,7 +48,7 @@ func (up RpmOstreeUpdater) Outdated() (bool, error) {
 	}
 	timestamp = time.Unix(status.Deployments[0].Timestamp, 0).UTC()
 
-	return timestamp.Before(oneMonthAgo), nil
+	return IsOutdatedOneMonthTimestamp(time.Now(), timestamp), nil
 }
 
 func (up RpmOstreeUpdater) Update() (*[]CommandOutput, error) {
@@ -77,16 +81,7 @@ func (up RpmOstreeUpdater) New(config UpdaterInitConfiguration) (RpmOstreeUpdate
 		Environment: config.Environment,
 	}
 	up.Config.Logger = config.Logger.With(slog.String("module", strings.ToLower(up.Config.Title)))
-	if up.Config.DryRun {
-		return up, nil
-	}
-
-	binaryPath, exists := up.Config.Environment["UUPD_RPMOSTREE_BINARY"]
-	if !exists || binaryPath == "" {
-		up.BinaryPath = "/usr/bin/rpm-ostree"
-	} else {
-		up.BinaryPath = binaryPath
-	}
+	up.BinaryPath = EnvOrFallback(up.Config.Environment, "UUPD_RPMOSTREE_BINARY", "/usr/bin/rpm-ostree")
 
 	return up, nil
 }

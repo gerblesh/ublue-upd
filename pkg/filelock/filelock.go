@@ -21,11 +21,7 @@ func GetDefaultLockfile() string {
 }
 
 func OpenLockfile(filepath string) (*os.File, error) {
-	file, err := os.OpenFile(filepath, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0666)
-	if err != nil {
-		return nil, err
-	}
-	return file, err
+	return os.OpenFile(filepath, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0666)
 }
 
 type TimeoutConfig struct {

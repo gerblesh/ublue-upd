@@ -43,11 +43,6 @@ type SystemUpdater struct {
 	BinaryPath string
 }
 
-// Checks if it is at least a month old considering how that works
-func IsOutdatedOneMonthTimestamp(current time.Time, target time.Time) bool {
-	return target.Before(current.AddDate(0, -1, 0))
-}
-
 func (up SystemUpdater) Outdated() (bool, error) {
 	if up.Config.DryRun {
 		return false, nil
@@ -69,7 +64,7 @@ func (up SystemUpdater) Outdated() (bool, error) {
 	if err != nil {
 		return false, nil
 	}
-	return IsOutdatedOneMonthTimestamp(time.Now(), timestamp), nil
+	return rpmostree.IsOutdatedOneMonthTimestamp(time.Now(), timestamp), nil
 }
 
 func (up SystemUpdater) Update() (*[]CommandOutput, error) {

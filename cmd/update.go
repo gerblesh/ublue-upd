@@ -137,7 +137,7 @@ func Update(cmd *cobra.Command, args []string) {
 
 	if systemOutdated {
 		const OUTDATED_WARNING = "There hasn't been an update in over a month. Consider rebooting or running updates manually"
-		err := session.Notify("System Warning", OUTDATED_WARNING)
+		err := session.Notify(users, "System Warning", OUTDATED_WARNING)
 		if err != nil {
 			slog.Error("Failed showing warning notification")
 		}
@@ -167,7 +167,6 @@ func Update(cmd *cobra.Command, args []string) {
 
 	if flatpakUpdater.Config.Enabled {
 		slog.Debug(fmt.Sprintf("%s module", flatpakUpdater.Config.Title), slog.String("module_name", flatpakUpdater.Config.Title), slog.Any("module_configuration", flatpakUpdater.Config))
-		percent.ChangeTrackerMessageFancy(pw, tracker, progressEnabled, percent.TrackerMessage{Title: flatpakUpdater.Config.Title, Description: flatpakUpdater.Config.Description})
 		var out *[]drv.CommandOutput
 		out, err = flatpakUpdater.Update()
 		outputs = append(outputs, *out...)
@@ -176,7 +175,6 @@ func Update(cmd *cobra.Command, args []string) {
 
 	if distroboxUpdater.Config.Enabled {
 		slog.Debug(fmt.Sprintf("%s module", distroboxUpdater.Config.Title), slog.String("module_name", distroboxUpdater.Config.Title), slog.Any("module_configuration", distroboxUpdater.Config))
-		percent.ChangeTrackerMessageFancy(pw, tracker, progressEnabled, percent.TrackerMessage{Title: distroboxUpdater.Config.Title, Description: distroboxUpdater.Config.Description})
 		var out *[]drv.CommandOutput
 		out, err = distroboxUpdater.Update()
 		outputs = append(outputs, *out...)

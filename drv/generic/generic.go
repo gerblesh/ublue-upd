@@ -28,11 +28,11 @@ func EnvOrFallback(environment EnvironmentMap, key string, fallback string) stri
 	return fallback
 }
 
-func GetEnvironment(data []string, getkeyval func(item string) (key, val string)) map[string]string {
+func GetEnvironment(data []string) map[string]string {
 	items := make(map[string]string)
 	for _, item := range data {
-		key, val := getkeyval(item)
-		items[key] = val
+		splits := strings.Split(item, "=")
+		items[splits[0]] = splits[1]
 	}
 	return items
 }
@@ -40,12 +40,7 @@ func GetEnvironment(data []string, getkeyval func(item string) (key, val string)
 func (up UpdaterInitConfiguration) New() *UpdaterInitConfiguration {
 	up.DryRun = false
 	up.Ci = false
-	up.Environment = GetEnvironment(os.Environ(), func(item string) (key, val string) {
-		splits := strings.Split(item, "=")
-		key = splits[0]
-		val = splits[1]
-		return
-	})
+	up.Environment = GetEnvironment(os.Environ())
 	up.Logger = slog.Default()
 
 	return &up

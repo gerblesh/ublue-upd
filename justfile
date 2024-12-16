@@ -77,10 +77,20 @@ lint:
 release:
 	goreleaser
 
-test:
-	go test -v -cover ./...
+test directory="":
+	#!/usr/bin/env bash
+	if [ "{{directory}}" != "" ] ; then
+		go test -v -cover ./{{directory}}/...
+	else
+		go test -v -cover ./...
+	fi
 
-test-interactive:
+test-coverage directory="":
 	#!/usr/bin/env bash
 	t="/tmp/go-cover.$$.tmp"
-	go test -v -coverprofile=$t ./... $@ && go tool cover -html=$t && unlink $t
+
+	if [ "{{directory}}" != "" ] ; then
+		go test -v -coverprofile=$t ./{{directory}}/... $@ && go tool cover -html=$t && unlink $t
+	else
+		go test -v -coverprofile=$t ./... $@ && go tool cover -html=$t && unlink $t
+	fi
