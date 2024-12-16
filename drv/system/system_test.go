@@ -3,20 +3,20 @@ package system_test
 import (
 	"testing"
 
-	"github.com/ublue-os/uupd/drv"
+	"github.com/ublue-os/uupd/drv/generic"
 	"github.com/ublue-os/uupd/drv/system"
 	appLogging "github.com/ublue-os/uupd/pkg/logging"
 )
 
 func InitBaseConfig() system.SystemUpdater {
-	var initConfiguration = drv.UpdaterInitConfiguration{
+	var initConfiguration = generic.UpdaterInitConfiguration{
 		DryRun:      false,
 		Ci:          false,
 		Verbose:     false,
 		Environment: nil,
 		Logger:      appLogging.NewMuteLogger(),
 	}
-	driv, _ := drv.SystemUpdater{}.New(initConfiguration)
+	driv, _ := system.SystemUpdater{}.New(initConfiguration)
 	return driv
 }
 
